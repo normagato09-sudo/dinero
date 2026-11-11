@@ -1,0 +1,11 @@
+diff --git a/vercel.json b/vercel.json
+new file mode 100644
+index 0000000..8b07037
+--- /dev/null
++++ b/vercel.json
+@@ -0,0 +1,5 @@
++{
++  "framework": "vite",
++  "buildCommand": "npm run build",
++  "outputDirectory": "dist"
++}
