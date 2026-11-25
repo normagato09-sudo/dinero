@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import {
-  cobraEnDia, costeAnual, euros, frecuencia, mismoDia, type Pago, resumenFin, semanaActual, terminado,
+  cobraEnDia, costeAnual, esIngreso, euros, frecuencia, mismoDia, type Pago, resumenFin, semanaActual, terminado,
 } from '../lib/calc'
 import { IconMas } from './icons'
 import { PagoForm } from './PagoForm'
 import { Sheet } from './Sheet'
 
-type Filtro = 'todos' | 'mensual' | 'anual'
+type Filtro = 'todos' | 'gastos' | 'ingresos'
 
 interface Props {
   pagos: Pago[]
@@ -23,7 +23,7 @@ export function Pagos({ pagos, hoy, onGuardar, onBorrar }: Props) {
 
   const semana = semanaActual(hoy)
   const visibles = pagos
-    .filter((p) => filtro === 'todos' || p.tipo === filtro)
+    .filter((p) => filtro === 'todos' || (filtro === 'ingresos') === esIngreso(p))
     .sort((a, b) => Number(terminado(a, hoy)) - Number(terminado(b, hoy)) || b.importe - a.importe)
 
   const cerrar = () => setAbierto(null)
@@ -31,14 +31,14 @@ export function Pagos({ pagos, hoy, onGuardar, onBorrar }: Props) {
   return (
     <section className="pantalla">
       <header className="cabecera">
-        <h1>Pagos</h1>
-        <button className="btn-icono btn-icono-principal" aria-label="Añadir pago" onClick={() => setAbierto('nuevo')}>
+        <h1>Fijos</h1>
+        <button className="btn-icono btn-icono-principal" aria-label="Añadir gasto o ingreso" onClick={() => setAbierto('nuevo')}>
           <IconMas />
         </button>
       </header>
 
       <div className="segmentado" role="tablist" aria-label="Filtro">
-        {([['todos', 'Todos'], ['mensual', 'Mensuales'], ['anual', 'Anuales']] as const).map(([v, t]) => (
+        {([['todos', 'Todos'], ['gastos', 'Gastos'], ['ingresos', 'Ingresos']] as const).map(([v, t]) => (
           <button key={v} role="tab" aria-selected={filtro === v} className={filtro === v ? 'activo' : ''} onClick={() => setFiltro(v)}>
             {t}
           </button>
@@ -47,20 +47,21 @@ export function Pagos({ pagos, hoy, onGuardar, onBorrar }: Props) {
 
       <div className="tarjeta semana" aria-label="Esta semana">
         {semana.map((dia, i) => {
-          const hay = pagos.some((p) => cobraEnDia(p, dia))
+          const hay = pagos.some((p) => !esIngreso(p) && cobraEnDia(p, dia))
+          const entra = pagos.some((p) => esIngreso(p) && cobraEnDia(p, dia))
           const esHoy = mismoDia(dia, hoy)
           return (
             <div key={i} className={`dia ${esHoy ? 'hoy' : ''}`}>
               <span className="dia-letra">{LETRAS[i]}</span>
               <span className="dia-num num">{dia.getDate()}</span>
-              <span className={`punto ${hay ? 'si' : ''}`} aria-label={hay ? 'Hay pago' : undefined} />
+              <span className={`punto ${hay ? 'si' : entra ? 'entra' : ''}`} aria-label={hay ? 'Hay pago' : entra ? 'Entra dinero' : undefined} />
             </div>
           )
         })}
       </div>
 
       <div className="lista">
-        {visibles.length === 0 && <p className="sub vacio">Sin pagos</p>}
+        {visibles.length === 0 && <p className="sub vacio">Nada por aquí. Pulsa + para añadir un gasto o un ingreso fijo.</p>}
         {visibles.map((p) => {
           const fin = resumenFin(p, hoy)
           const acabado = terminado(p, hoy)
@@ -71,7 +72,7 @@ export function Pagos({ pagos, hoy, onGuardar, onBorrar }: Props) {
                   <span className="titulo-pago">{p.nombre}</span>
                   <span className="sub">{frecuencia(p)}</span>
                 </div>
-                <span className="num importe naranja">{euros(p.importe)}</span>
+                <span className={`num importe ${esIngreso(p) ? 'verde' : 'naranja'}`}>{esIngreso(p) ? '+' : ''}{euros(p.importe)}</span>
               </div>
               {fin && <span className="pago-fin">{fin}</span>}
             </button>
@@ -80,11 +81,11 @@ export function Pagos({ pagos, hoy, onGuardar, onBorrar }: Props) {
       </div>
 
       <div className="tarjeta coste">
-        <span className="etiqueta">Coste real al año</span>
+        <span className="etiqueta">Gastos fijos al año</span>
         <span className="num coste-num">{euros(costeAnual(pagos, hoy))}</span>
       </div>
 
-      <Sheet titulo={abierto === 'nuevo' ? 'Nuevo pago' : 'Editar pago'} abierta={abierto !== null} onCerrar={cerrar}>
+      <Sheet titulo={abierto === 'nuevo' ? 'Nuevo fijo' : esIngreso(abierto as Pago) ? 'Editar ingreso' : 'Editar pago'} abierta={abierto !== null} onCerrar={cerrar}>
         {abierto !== null && (
           <PagoForm
             key={abierto === 'nuevo' ? 'nuevo' : abierto.id}

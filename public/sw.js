@@ -1,5 +1,5 @@
 // Service worker sencillo: la app funciona sin conexión.
-const CACHE = 'mi-dinero-v1'
+const CACHE = 'mi-dinero-v2'
 const BASE = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (e) => {
@@ -18,6 +18,8 @@ self.addEventListener('fetch', (e) => {
   const req = e.request
   if (req.method !== 'GET') return
   const url = new URL(req.url)
+  // Los datos de la nube siempre frescos: nunca de la caché.
+  if (url.pathname.startsWith('/api/')) return
 
   // Páginas: red primero, si no hay conexión, la copia guardada.
   if (req.mode === 'navigate') {

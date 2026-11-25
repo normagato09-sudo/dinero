@@ -1,19 +1,28 @@
 import { useRef, useState } from 'react'
-import { type Datos, diasHasta, enDias, euros, fechaCorta, parseImporte, proximoPago } from '../lib/calc'
-import { exportarJSON, leerJSON } from '../lib/store'
+import { type Datos, diasHasta, enDias, euros, fechaCorta, parseISO, parseImporte, proximoPago } from '../lib/calc'
+import { type EstadoNube, exportarJSON, leerJSON } from '../lib/store'
 import { IconAjustes, IconBajar, IconEditar, IconSubir } from './icons'
 import { Sheet } from './Sheet'
 
 interface Props {
   datos: Datos
   hoy: Date
+  estado: EstadoNube
   onSaldo: (n: number) => void
   onImportar: (d: Datos) => void
 }
 
 const aTexto = (n: number) => n.toFixed(2).replace('.', ',')
 
-export function Inicio({ datos, hoy, onSaldo, onImportar }: Props) {
+const NUBE: Record<EstadoNube, { texto: string; clase: string }> = {
+  cargando: { texto: 'Sincronizando…', clase: '' },
+  nube: { texto: 'Guardado en la nube · se actualiza solo', clase: 'ok' },
+  local: { texto: 'Solo en este dispositivo', clase: 'mal' },
+  clave: { texto: 'Falta la contraseña', clase: 'mal' },
+  'sin-conexion': { texto: 'Sin conexión · se guardará al volver', clase: 'mal' },
+}
+
+export function Inicio({ datos, hoy, estado, onSaldo, onImportar }: Props) {
   const [editando, setEditando] = useState(false)
   const [ajustes, setAjustes] = useState(false)
   const [valor, setValor] = useState('')
@@ -21,6 +30,8 @@ export function Inicio({ datos, hoy, onSaldo, onImportar }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const prox = proximoPago(datos.pagos, hoy)
+  const proxIngreso = proximoPago(datos.pagos, hoy, 'ingreso')
+  const recientes = [...(datos.movimientos ?? [])].reverse().slice(0, 6)
   const nuevo = parseImporte(valor)
 
   const abrirSaldo = () => {
@@ -60,6 +71,7 @@ export function Inicio({ datos, hoy, onSaldo, onImportar }: Props) {
         <span className="num saldo-num">{euros(datos.saldo)}</span>
         <span className="saldo-editar"><IconEditar /> Tocar para editar</span>
       </button>
+      <span className={`nube ${NUBE[estado].clase}`}><span className="bola" />{NUBE[estado].texto}</span>
 
       <div className="tarjeta">
         <span className="etiqueta">Próximo pago</span>
@@ -76,6 +88,35 @@ export function Inicio({ datos, hoy, onSaldo, onImportar }: Props) {
         ) : (
           <p className="sub vacio">No hay pagos próximos</p>
         )}
+      </div>
+
+      {proxIngreso && (
+        <div className="tarjeta">
+          <span className="etiqueta">Próximo ingreso</span>
+          <div className="fila-proximo">
+            <div>
+              <div className="titulo-pago">{proxIngreso.pago.nombre}</div>
+              <div className="sub">
+                {fechaCorta(proxIngreso.fecha)} · <strong className="verde">{enDias(diasHasta(proxIngreso.fecha, hoy))}</strong>
+              </div>
+            </div>
+            <span className="num importe verde">+{euros(proxIngreso.pago.importe)}</span>
+          </div>
+        </div>
+      )}
+
+      <div className="tarjeta">
+        <span className="etiqueta">Últimos movimientos</span>
+        {recientes.length === 0 && <p className="sub vacio">Aquí verás lo que se suma y se resta solo.</p>}
+        {recientes.map((m) => (
+          <div key={m.id} className="movimiento">
+            <div>
+              <div className="titulo-pago">{m.nombre}</div>
+              <div className="sub">{fechaCorta(parseISO(m.fecha) ?? hoy)}{m.tipo === 'fijo' ? ' · automático' : ''}</div>
+            </div>
+            <span className={`num importe ${m.importe > 0 ? 'verde' : 'naranja'}`}>{m.importe > 0 ? '+' : '−'}{euros(Math.abs(m.importe))}</span>
+          </div>
+        ))}
       </div>
 
       <Sheet titulo="Lo que tengo" abierta={editando} onCerrar={() => setEditando(false)}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { crearId, MESES, type Pago, parseImporte, type TipoPago } from '../lib/calc'
+import { type Clase, crearId, MESES, type Pago, parseImporte, type TipoPago } from '../lib/calc'
 
 interface Props {
   inicial?: Pago
@@ -8,6 +8,7 @@ interface Props {
 }
 
 export function PagoForm({ inicial, onGuardar, onBorrar }: Props) {
+  const [clase, setClase] = useState<Clase>(inicial?.clase ?? 'gasto')
   const [nombre, setNombre] = useState(inicial?.nombre ?? '')
   const [importe, setImporte] = useState(inicial ? inicial.importe.toFixed(2).replace('.', ',') : '')
   const [tipo, setTipo] = useState<TipoPago>(inicial?.tipo ?? 'mensual')
@@ -31,14 +32,23 @@ export function PagoForm({ inicial, onGuardar, onBorrar }: Props) {
     }
     if (tipo === 'anual') p.mes = Number(mes)
     if (fin) p.fin = fin
+    if (clase === 'ingreso') p.clase = 'ingreso'
     onGuardar(p)
   }
 
   return (
     <form className="form" onSubmit={(e) => { e.preventDefault(); guardar() }}>
+      <div className="segmentado" role="radiogroup" aria-label="Gasto o ingreso">
+        {(['gasto', 'ingreso'] as const).map((c) => (
+          <button type="button" key={c} role="radio" aria-checked={clase === c} className={clase === c ? 'activo' : ''} onClick={() => setClase(c)}>
+            {c === 'gasto' ? 'Gasto (resta)' : 'Ingreso (suma)'}
+          </button>
+        ))}
+      </div>
+
       <label>
         <span>Nombre</span>
-        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Netflix" autoComplete="off" />
+        <input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder={clase === 'ingreso' ? 'Paga' : 'Netflix'} autoComplete="off" />
       </label>
 
       <label>
@@ -90,7 +100,7 @@ export function PagoForm({ inicial, onGuardar, onBorrar }: Props) {
           className={`btn ${confirmar ? 'btn-peligro' : 'btn-texto-peligro'}`}
           onClick={() => (confirmar ? onBorrar() : setConfirmar(true))}
         >
-          {confirmar ? 'Tocar otra vez para borrar' : 'Borrar pago'}
+          {confirmar ? 'Tocar otra vez para borrar' : clase === 'ingreso' ? 'Borrar ingreso' : 'Borrar pago'}
         </button>
       )}
     </form>

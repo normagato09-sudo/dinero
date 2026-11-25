@@ -3,20 +3,24 @@ import { Inicio } from './components/Inicio'
 import { Pagos } from './components/Pagos'
 import { Puedo } from './components/Puedo'
 import { IconInicio, IconPagos, IconPuedo } from './components/icons'
+import { Contrasena } from './components/Contrasena'
+import { conMovimientos, crearId, redondear, toISO } from './lib/calc'
 import { useDatos, useHoy } from './lib/store'
 
 type Pestana = 'inicio' | 'pagos' | 'puedo'
 
 const PESTANAS = [
   { id: 'inicio', texto: 'Inicio', Icono: IconInicio },
-  { id: 'pagos', texto: 'Pagos', Icono: IconPagos },
+  { id: 'pagos', texto: 'Fijos', Icono: IconPagos },
   { id: 'puedo', texto: '¿Puedo?', Icono: IconPuedo },
 ] as const
 
 export default function App() {
   const [pestana, setPestana] = useState<Pestana>('inicio')
-  const [datos, actualizar, reemplazar] = useDatos()
+  const [datos, actualizar, reemplazar, nube] = useDatos()
   const hoy = useHoy()
+
+  if (nube.estado === 'clave') return <Contrasena onEntrar={nube.setContrasena} />
 
   return (
     <div className="app">
@@ -25,7 +29,15 @@ export default function App() {
           <Inicio
             datos={datos}
             hoy={hoy}
-            onSaldo={(saldo) => actualizar((d) => ({ ...d, saldo }))}
+            estado={nube.estado}
+            onSaldo={(saldo) =>
+              actualizar((d) => {
+                const diferencia = redondear(saldo - d.saldo)
+                if (diferencia === 0) return d
+                const ajuste = { id: crearId(), fecha: toISO(hoy), nombre: 'Ajuste a mano', importe: diferencia, tipo: 'ajuste' as const }
+                return { ...d, saldo, movimientos: conMovimientos(d, [ajuste]) }
+              })
+            }
             onImportar={reemplazar}
           />
         )}

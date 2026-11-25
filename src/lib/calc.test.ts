@@ -21,6 +21,8 @@ import {
   semanaActual,
   terminado,
   validarDatos,
+  aplicarPendientes,
+  resumenMovimientos,
 } from './calc'
 
 const d = (a: number, m: number, dia: number) => new Date(a, m - 1, dia)
@@ -193,5 +195,35 @@ describe('copia de seguridad', () => {
     expect(() => validarDatos(null)).toThrow()
     expect(() => validarDatos({ saldo: 'x', pagos: [] })).toThrow()
     expect(() => validarDatos({ saldo: 1, pagos: [{ nombre: 'x' }] })).toThrow()
+  })
+})
+
+describe('saldo automático', () => {
+  const paga = (dia: number): Pago => ({ id: 'p', nombre: 'Paga', importe: 20, tipo: 'mensual', dia, clase: 'ingreso' })
+  const base = { saldo: 100, pagos: [mensual(12), paga(13)] }
+
+  it('la primera vez solo marca el día, sin tocar el saldo', () => {
+    const r = aplicarPendientes(base, d(2026, 11, 12))
+    expect(r.datos.saldo).toBe(100)
+    expect(r.datos.aplicadoHasta).toBe('2026-11-12')
+    expect(r.aplicados).toHaveLength(0)
+  })
+
+  it('resta gastos y suma ingresos de los días que faltan, una sola vez', () => {
+    const r = aplicarPendientes({ ...base, aplicadoHasta: '2026-11-11' }, d(2026, 11, 13))
+    expect(r.datos.saldo).toBe(110)
+    expect(r.aplicados.map((m) => m.importe)).toEqual([-10, 20])
+    expect(aplicarPendientes(r.datos, d(2026, 11, 13)).aplicados).toHaveLength(0)
+  })
+
+  it('los ingresos no cuentan como gastos', () => {
+    expect(pendienteEsteMes([mensual(20), paga(20)], d(2026, 11, 1))).toBe(10)
+    expect(costeAnual([mensual(20), paga(20)], d(2026, 11, 1))).toBe(120)
+  })
+
+  it('resume entradas y salidas', () => {
+    const r = aplicarPendientes({ ...base, aplicadoHasta: '2026-11-11' }, d(2026, 11, 13))
+    const res = resumenMovimientos(r.datos.movimientos ?? [], '2026-11-01', '2026-11-30')
+    expect(res).toMatchObject({ entradas: 20, salidas: 10, neto: 10 })
   })
 })

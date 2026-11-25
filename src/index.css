@@ -120,6 +120,8 @@ button.tarjeta:active { transform: scale(.985); }
 .dia.hoy .dia-letra { color: #d1fae5; }
 .punto { width: 6px; height: 6px; border-radius: 50%; }
 .punto.si { background: var(--naranja); }
+.punto.entra { background: var(--verde); }
+.dia.hoy .punto.entra { background: #d1fae5; }
 .dia.hoy .punto.si { background: #fed7aa; }
 
 /* ---------- Lista de pagos ---------- */
@@ -214,3 +216,12 @@ button.tarjeta:active { transform: scale(.985); }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Movimientos y estado de la nube */
+.movimiento { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--linea); }
+.movimiento:first-of-type { border-top: 0; }
+.movimiento .importe { font-size: 17px; }
+.nube { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--gris); }
+.nube .bola { width: 8px; height: 8px; border-radius: 50%; background: var(--gris); }
+.nube.ok .bola { background: var(--verde); }
+.nube.mal .bola { background: var(--naranja); }

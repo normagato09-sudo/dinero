@@ -1,6 +1,8 @@
 // Lógica pura de fechas, pagos y dinero. Sin dependencias de React.
 
 export type TipoPago = 'mensual' | 'anual'
+/** Gasto fijo (resta del saldo) o ingreso fijo (suma), p. ej. la paga. */
+export type Clase = 'gasto' | 'ingreso'
 
 export interface Pago {
   id: string
@@ -13,12 +15,33 @@ export interface Pago {
   mes?: number
   /** Fecha de fin opcional, formato AAAA-MM-DD (incluida). */
   fin?: string
+  /** Sin indicar = gasto. */
+  clase?: Clase
+}
+
+/** Un cambio del saldo: un pago o ingreso aplicado solo, o un ajuste a mano. */
+export interface Movimiento {
+  id: string
+  /** AAAA-MM-DD */
+  fecha: string
+  nombre: string
+  /** Positivo = entra dinero; negativo = sale. */
+  importe: number
+  tipo: 'fijo' | 'ajuste'
 }
 
 export interface Datos {
   saldo: number
   pagos: Pago[]
+  /** Historial de movimientos (los más nuevos al final; se guardan como mucho 300). */
+  movimientos?: Movimiento[]
+  /** Último día (AAAA-MM-DD) cuyos pagos e ingresos fijos ya se han aplicado al saldo. */
+  aplicadoHasta?: string
 }
+
+export const esIngreso = (p: Pago) => p.clase === 'ingreso'
+export const gastos = (pagos: Pago[]) => pagos.filter((p) => !esIngreso(p))
+export const ingresos = (pagos: Pago[]) => pagos.filter(esIngreso)
 
 export const MESES = [
   'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
@@ -145,9 +168,10 @@ export interface Proximo {
   fecha: Date
 }
 
-export function proximoPago(pagos: Pago[], hoy: Date): Proximo | null {
+/** Próximo gasto (o, con `clase: 'ingreso'`, el próximo ingreso). */
+export function proximoPago(pagos: Pago[], hoy: Date, clase: Clase = 'gasto'): Proximo | null {
   let mejor: Proximo | null = null
-  for (const pago of pagos) {
+  for (const pago of pagos.filter((p) => (p.clase ?? 'gasto') === clase)) {
     const fecha = proximoCobro(pago, hoy)
     if (fecha && (!mejor || fecha < mejor.fecha)) mejor = { pago, fecha }
   }
@@ -158,7 +182,7 @@ export function proximoPago(pagos: Pago[], hoy: Date): Proximo | null {
 export function pendienteEsteMes(pagos: Pago[], hoy: Date): number {
   const base = inicioDia(hoy)
   let total = 0
-  for (const p of pagos) {
+  for (const p of gastos(pagos)) {
     const f = cobroEnMes(p, base.getFullYear(), base.getMonth())
     if (f && f >= base) total += p.importe
   }
@@ -173,7 +197,7 @@ export function libreEsteMes(saldo: number, pagos: Pago[], hoy: Date): number {
 /** Coste real al año: mensuales × 12 + anuales (sin los terminados). */
 export function costeAnual(pagos: Pago[], hoy: Date): number {
   return redondear(
-    pagos
+    gastos(pagos)
       .filter((p) => !terminado(p, hoy))
       .reduce((s, p) => s + (p.tipo === 'mensual' ? p.importe * 12 : p.importe), 0),
   )
@@ -274,9 +298,75 @@ export function validarDatos(x: unknown): Datos {
       pago.mes = mes >= 1 && mes <= 12 ? Math.floor(mes) : 1
     }
     if (typeof p.fin === 'string' && parseISO(p.fin)) pago.fin = p.fin
+    if (p.clase === 'ingreso') pago.clase = 'ingreso'
     return pago
   })
-  return { saldo: redondear(o.saldo), pagos }
+  const datos: Datos = { saldo: redondear(o.saldo), pagos }
+  if (Array.isArray(o.movimientos)) {
+    datos.movimientos = o.movimientos
+      .map((raw) => raw as Record<string, unknown>)
+      .filter((m) => typeof m.fecha === 'string' && typeof m.nombre === 'string' && typeof m.importe === 'number')
+      .map((m) => ({
+        id: typeof m.id === 'string' ? m.id : crearId(),
+        fecha: m.fecha as string,
+        nombre: m.nombre as string,
+        importe: redondear(m.importe as number),
+        tipo: m.tipo === 'ajuste' ? 'ajuste' : 'fijo',
+      }))
+  }
+  if (typeof o.aplicadoHasta === 'string' && parseISO(o.aplicadoHasta)) datos.aplicadoHasta = o.aplicadoHasta
+  return datos
+}
+
+// ---------- Saldo automático ----------
+
+const MAX_MOVIMIENTOS = 300
+
+/** Añade movimientos al historial (recortando los más viejos). */
+export function conMovimientos(d: Datos, nuevos: Movimiento[]): Movimiento[] {
+  return [...(d.movimientos ?? []), ...nuevos].slice(-MAX_MOVIMIENTOS)
+}
+
+/**
+ * Aplica al saldo los pagos e ingresos fijos de cada día desde `aplicadoHasta` (no incluido) hasta hoy (incluido).
+ * La primera vez solo marca hoy como aplicado: lo de antes ya está contado en el saldo que pusiste a mano.
+ * Devuelve los datos nuevos y los movimientos aplicados (vacío si no había nada).
+ */
+export function aplicarPendientes(d: Datos, hoy: Date): { datos: Datos; aplicados: Movimiento[] } {
+  const base = inicioDia(hoy)
+  const hoyISO = toISO(base)
+  if (!d.aplicadoHasta) return { datos: { ...d, aplicadoHasta: hoyISO }, aplicados: [] }
+  const desde = parseISO(d.aplicadoHasta)
+  if (!desde || desde >= base) return { datos: d, aplicados: [] }
+  const aplicados: Movimiento[] = []
+  // Como mucho 400 días atrás, por si la app lleva mucho sin abrirse.
+  for (let i = 1; i <= 400; i++) {
+    const dia = new Date(desde.getFullYear(), desde.getMonth(), desde.getDate() + i)
+    if (dia > base) break
+    for (const p of d.pagos) {
+      if (!cobraEnDia(p, dia)) continue
+      aplicados.push({
+        id: crearId(),
+        fecha: toISO(dia),
+        nombre: p.nombre,
+        importe: esIngreso(p) ? p.importe : -p.importe,
+        tipo: 'fijo',
+      })
+    }
+  }
+  const saldo = redondear(aplicados.reduce((s, m) => s + m.importe, d.saldo))
+  return { datos: { ...d, saldo, aplicadoHasta: hoyISO, movimientos: conMovimientos(d, aplicados) }, aplicados }
+}
+
+/** Entradas y salidas de los movimientos entre dos fechas AAAA-MM-DD (incluidas). */
+export function resumenMovimientos(movs: Movimiento[], desde: string, hasta: string) {
+  const dentro = movs.filter((m) => m.fecha >= desde && m.fecha <= hasta)
+  const entradas = redondear(dentro.filter((m) => m.importe > 0).reduce((s, m) => s + m.importe, 0))
+  const salidas = redondear(dentro.filter((m) => m.importe < 0).reduce((s, m) => s - m.importe, 0))
+  const porNombre = new Map<string, number>()
+  for (const m of dentro.filter((x) => x.importe < 0)) porNombre.set(m.nombre, (porNombre.get(m.nombre) ?? 0) - m.importe)
+  const mayores = [...porNombre.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3)
+  return { entradas, salidas, neto: redondear(entradas - salidas), mayores, n: dentro.length }
 }
 
 export function crearId(): string {
