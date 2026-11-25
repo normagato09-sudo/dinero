@@ -85,7 +85,7 @@ export function Pagos({ pagos, hoy, onGuardar, onBorrar }: Props) {
         <span className="num coste-num">{euros(costeAnual(pagos, hoy))}</span>
       </div>
 
-      <Sheet titulo={abierto === 'nuevo' ? 'Nuevo fijo' : esIngreso(abierto as Pago) ? 'Editar ingreso' : 'Editar pago'} abierta={abierto !== null} onCerrar={cerrar}>
+      <Sheet titulo={abierto === 'nuevo' ? 'Nuevo fijo' : abierto && esIngreso(abierto) ? 'Editar ingreso' : 'Editar pago'} abierta={abierto !== null} onCerrar={cerrar}>
         {abierto !== null && (
           <PagoForm
             key={abierto === 'nuevo' ? 'nuevo' : abierto.id}
