@@ -1,5 +1,5 @@
 // Service worker sencillo: la app funciona sin conexión.
-const CACHE = 'mi-dinero-v2'
+const CACHE = 'mi-dinero-v3'
 const BASE = ['/', '/index.html', '/manifest.webmanifest', '/icon.svg', '/icon-192.png', '/icon-512.png']
 
 self.addEventListener('install', (e) => {

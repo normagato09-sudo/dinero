@@ -225,3 +225,11 @@ button.tarjeta:active { transform: scale(.985); }
 .nube .bola { width: 8px; height: 8px; border-radius: 50%; background: var(--gris); }
 .nube.ok .bola { background: var(--verde); }
 .nube.mal .bola { background: var(--naranja); }
+
+/* Aviso de versión nueva */
+.actualizar {
+  position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 50;
+  display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 16px;
+  background: var(--texto); color: #fff; box-shadow: 0 8px 30px rgb(15 23 42 / .3); max-width: calc(100vw - 32px); font-weight: 600;
+}
+.actualizar .btn { min-height: 40px; padding: 0 16px; width: auto; }
